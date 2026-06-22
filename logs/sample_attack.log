@@ -1,0 +1,24 @@
+2026-01-15 02:13:47 [INFO]  FIREWALL: Port probe - src=198.51.100.22 dst_port=22 protocol=TCP action=REJECT
+2026-01-15 02:13:47 [INFO]  FIREWALL: Port probe - src=198.51.100.22 dst_port=23 protocol=TCP action=REJECT
+2026-01-15 02:13:47 [INFO]  FIREWALL: Port probe - src=198.51.100.22 dst_port=25 protocol=TCP action=REJECT
+2026-01-15 02:13:48 [INFO]  FIREWALL: Port probe - src=198.51.100.22 dst_port=80 protocol=TCP action=REJECT
+2026-01-15 02:13:48 [INFO]  FIREWALL: Port probe - src=198.51.100.22 dst_port=443 protocol=TCP action=REJECT
+2026-01-15 02:13:48 [INFO]  FIREWALL: Port probe - src=198.51.100.22 dst_port=3306 protocol=TCP action=REJECT
+2026-01-15 02:13:49 [INFO]  FIREWALL: Port probe - src=198.51.100.22 dst_port=3389 protocol=TCP action=REJECT
+2026-01-15 02:13:49 [INFO]  FIREWALL: Port probe - src=198.51.100.22 dst_port=8080 protocol=TCP action=REJECT
+2026-01-15 02:13:49 [INFO]  FIREWALL: Port probe - src=198.51.100.22 dst_port=8443 protocol=TCP action=REJECT
+2026-01-15 02:14:33 [WARN]  SSH_AUTH: Failed login attempt - user='admin' password='admin' src=203.0.113.45 port=22
+2026-01-15 02:14:36 [WARN]  SSH_AUTH: Failed login attempt - user='admin' password='123456' src=203.0.113.45 port=22
+2026-01-15 02:14:39 [WARN]  SSH_AUTH: Failed login attempt - user='root' password='password' src=203.0.113.45 port=22
+2026-01-15 02:14:42 [WARN]  SSH_AUTH: Failed login attempt - user='root' password='toor' src=203.0.113.45 port=22
+2026-01-15 02:14:45 [WARN]  SSH_AUTH: Failed login attempt - user='root' password='root123' src=203.0.113.45 port=22
+2026-01-15 02:14:48 [WARN]  SSH_AUTH: Failed login attempt - user='ubuntu' password='ubuntu' src=203.0.113.45 port=22
+2026-01-15 02:14:51 [WARN]  SSH_AUTH: Failed login attempt - user='ubuntu' password='letmein' src=203.0.113.45 port=22
+2026-01-15 02:14:54 [WARN]  SSH_AUTH: Failed login attempt - user='pi' password='raspberry' src=203.0.113.45 port=22
+2026-01-15 02:15:20 [WARN]  SSH_AUTH: Failed login attempt - user='admin' password='qwerty' src=192.0.2.101 port=22
+2026-01-15 02:15:23 [WARN]  SSH_AUTH: Failed login attempt - user='admin' password='admin123' src=192.0.2.101 port=22
+2026-01-15 02:15:26 [WARN]  SSH_AUTH: Failed login attempt - user='root' password='Pass@1234' src=192.0.2.101 port=22
+2026-01-15 02:15:29 [WARN]  SSH_AUTH: Failed login attempt - user='guest' password='guest' src=192.0.2.101 port=22
+2026-01-15 02:16:45 [ALERT] AUDIT: Honeyfile read - file=/var/backup/passwords.bak user='guest' src=203.0.113.45
+2026-01-15 02:16:52 [ALERT] AUDIT: Honeyfile read - file=/home/admin/.ssh/authorized_keys.bak user='guest' src=203.0.113.45
+2026-01-15 02:17:08 [ALERT] AUDIT: Honeyfile read - file=/etc/shadow.bak user='guest' src=192.0.2.101
