@@ -22,3 +22,8 @@
 2026-01-15 02:16:45 [ALERT] AUDIT: Honeyfile read - file=/var/backup/passwords.bak user='guest' src=203.0.113.45
 2026-01-15 02:16:52 [ALERT] AUDIT: Honeyfile read - file=/home/admin/.ssh/authorized_keys.bak user='guest' src=203.0.113.45
 2026-01-15 02:17:08 [ALERT] AUDIT: Honeyfile read - file=/etc/shadow.bak user='guest' src=192.0.2.101
+2026-01-15 02:17:30 [WARN]  PHYSICAL: Motion detected - sensor='CAM_03' zone='SERVER_ROOM' duration=45s
+2026-01-15 02:18:00 [WARN]  ACCESS_CTRL: Badge scan - badge_id='B-4421' location='SERVER_ROOM' result=DENIED
+2026-01-15 02:19:15 [ALERT] SECURITY: After-hours intrusion - zone='DATA_CENTER' sensor='DOOR_02' badge_id='B-4421'
+2026-01-15 02:20:30 [ALERT] NETWORK: Unknown device - mac='AA:BB:CC:DD:EE:FF' ip=10.0.0.99 zone='SERVER_ROOM' badge_id='B-4421'
+2026-01-15 02:21:00 [ALERT] AUDIT: Physical-digital correlation - file=/var/secret/honeypot.cfg badge_id='B-4421' zone='SERVER_ROOM'

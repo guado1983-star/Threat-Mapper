@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ThreatMapper Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0d1117;
+      --surface: #161b22;
+      --border:  #30363d;
+      --text:    #c9d1d9;
+      --muted:   #8b949e;
+      --green:   #3fb950;
+      --red:     #f85149;
+      --yellow:  #d29922;
+      --blue:    #58a6ff;
+      --purple:  #a371f7;
+      --orange:  #f0883e;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header h1 { color: var(--green); font-size: 18px; letter-spacing: 3px; }
+    header .sub { color: var(--muted); font-size: 12px; }
+
+    .dot {
+      width: 8px; height: 8px;
+      background: var(--green);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.3; }
+    }
+
+    main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+
+    /* ── Cards ── */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 20px;
+    }
+
+    .card .label {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+
+    .card .value { font-size: 36px; font-weight: bold; }
+    .card .hint  { color: var(--muted); font-size: 11px; margin-top: 4px; }
+
+    .card.total    .value { color: var(--blue); }
+    .card.ssh      .value { color: var(--red); }
+    .card.port     .value { color: var(--yellow); }
+    .card.physical .value { color: var(--purple); }
+
+    /* ── Two-column grid ── */
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    /* ── Panels ── */
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    /* ── Tables ── */
+    table { width: 100%; border-collapse: collapse; }
+
+    th {
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 10px 16px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-weight: normal;
+    }
+
+    td {
+      padding: 10px 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: rgba(255,255,255,0.02); }
+
+    /* ── Score bar ── */
+    .bar { height: 6px; background: var(--border); border-radius: 3px; min-width: 80px; }
+    .bar-fill { height: 6px; border-radius: 3px; background: var(--red); }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      white-space: nowrap;
+    }
+
+    /* Digital event badges */
+    .badge.ssh    { background: rgba(248,81,73,0.15);   color: var(--red); }
+    .badge.port   { background: rgba(210,153,34,0.15);  color: var(--yellow); }
+    .badge.honey  { background: rgba(63,185,80,0.15);   color: var(--green); }
+
+    /* Physical event badges */
+    .badge.phys        { background: rgba(163,113,247,0.15); color: var(--purple); }
+    .badge.phys-orange { background: rgba(240,136,62,0.15);  color: var(--orange); }
+
+    /* MITRE technique badges */
+    .badge.t1110 { background: rgba(248,81,73,0.1);    color: var(--red); }
+    .badge.t1046 { background: rgba(210,153,34,0.1);   color: var(--yellow); }
+    .badge.t1083 { background: rgba(63,185,80,0.1);    color: var(--green); }
+    .badge.t1078 { background: rgba(163,113,247,0.1);  color: var(--purple); }
+    .badge.t0867 { background: rgba(163,113,247,0.1);  color: var(--purple); }
+    .badge.t1200 { background: rgba(240,136,62,0.1);   color: var(--orange); }
+    .badge.t0812 { background: rgba(163,113,247,0.1);  color: var(--purple); }
+    .badge.t1074 { background: rgba(240,136,62,0.1);   color: var(--orange); }
+
+    .top { color: var(--red); font-weight: bold; }
+    .num { color: var(--muted); font-size: 11px; }
+    .dim { color: var(--muted); font-size: 12px; }
+    .loading { padding: 32px; text-align: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="dot"></div>
+  <h1>THREATMAPPER</h1>
+  <span class="sub">Security Event Dashboard</span>
+</header>
+
+<main>
+
+  <div class="cards">
+    <div class="card total">
+      <div class="label">Total Events</div>
+      <div class="value" id="c-total">--</div>
+      <div class="hint">Parsed from log</div>
+    </div>
+    <div class="card ssh">
+      <div class="label">SSH Brute Force</div>
+      <div class="value" id="c-ssh">--</div>
+      <div class="hint">T1110 &mdash; Credential Access</div>
+    </div>
+    <div class="card port">
+      <div class="label">Port Scans</div>
+      <div class="value" id="c-port">--</div>
+      <div class="hint">T1046 &mdash; Discovery</div>
+    </div>
+    <div class="card physical">
+      <div class="label">Physical Events</div>
+      <div class="value" id="c-physical">--</div>
+      <div class="hint">Motion / Badge / Intrusion</div>
+    </div>
+  </div>
+
+  <div class="grid">
+
+    <div class="panel">
+      <div class="panel-header">Top Attackers &mdash; Threat Score</div>
+      <table>
+        <thead><tr>
+          <th>Source</th>
+          <th>Score</th>
+          <th>Events</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="tb-threats"><tr><td colspan="4" class="loading">Loading&hellip;</td></tr></tbody>
+      </table>
+    </div>
+
+    <div class="panel">
+      <div class="panel-header">MITRE ATT&CK Techniques</div>
+      <table>
+        <thead><tr>
+          <th>ID</th>
+          <th>Name</th>
+          <th>Tactic</th>
+          <th>Count</th>
+        </tr></thead>
+        <tbody id="tb-mitre"><tr><td colspan="4" class="loading">Loading&hellip;</td></tr></tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <div class="panel">
+    <div class="panel-header">Security Events</div>
+    <table>
+      <thead><tr>
+        <th>#</th>
+        <th>Timestamp</th>
+        <th>Event Type</th>
+        <th>Source</th>
+        <th>Details</th>
+        <th>MITRE</th>
+      </tr></thead>
+      <tbody id="tb-events"><tr><td colspan="6" class="loading">Loading&hellip;</td></tr></tbody>
+    </table>
+  </div>
+
+</main>
+
+<script>
+  const PHYSICAL_TYPES = new Set([
+    'MOTION_DETECTED', 'PHYSICAL_PRESENCE', 'AFTER_HOURS_INTRUSION',
+    'CORRELATED_ATTACK', 'HONEYFILE_PHYSICAL_CORRELATION',
+  ]);
+
+  const TYPE_CLS = {
+    SSH_LOGIN_FAILED:             'ssh',
+    PORT_SCAN:                    'port',
+    HONEYFILE_ACCESSED:           'honey',
+    MOTION_DETECTED:              'phys',
+    PHYSICAL_PRESENCE:            'phys',
+    AFTER_HOURS_INTRUSION:        'phys',
+    CORRELATED_ATTACK:            'phys-orange',
+    HONEYFILE_PHYSICAL_CORRELATION: 'phys-orange',
+  };
+
+  const MITRE_CLS = {
+    T1110: 't1110',
+    T1046: 't1046',
+    T1083: 't1083',
+    T1078: 't1078',
+    T0867: 't0867',
+    T1200: 't1200',
+    T0812: 't0812',
+    T1074: 't1074',
+  };
+
+  function badge(text, cls) {
+    return `<span class="badge ${cls}">${text}</span>`;
+  }
+
+  async function load() {
+    const [summary, eventsResp] = await Promise.all([
+      fetch('/api/summary').then(r => r.json()),
+      fetch('/api/events').then(r => r.json()),
+    ]);
+
+    const types = summary.event_types;
+
+    // Cards
+    document.getElementById('c-total').textContent    = summary.total_events;
+    document.getElementById('c-ssh').textContent      = types['SSH_LOGIN_FAILED'] ?? 0;
+    document.getElementById('c-port').textContent     = types['PORT_SCAN'] ?? 0;
+
+    const physCount = ['MOTION_DETECTED','PHYSICAL_PRESENCE','AFTER_HOURS_INTRUSION',
+                       'CORRELATED_ATTACK','HONEYFILE_PHYSICAL_CORRELATION']
+      .reduce((sum, k) => sum + (types[k] ?? 0), 0);
+    document.getElementById('c-physical').textContent = physCount;
+
+    // Threat scores
+    const topScore = summary.threat_scores[0]?.score ?? 1;
+    document.getElementById('tb-threats').innerHTML = summary.threat_scores.map((row, i) => {
+      const pct = Math.round((row.score / topScore) * 100);
+      const cls = i === 0 ? 'top' : '';
+      return `<tr>
+        <td class="${cls}">${row.ip}${i === 0 ? ' &laquo;' : ''}</td>
+        <td>${row.score}</td>
+        <td>${row.events}</td>
+        <td><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div></td>
+      </tr>`;
+    }).join('');
+
+    // MITRE
+    document.getElementById('tb-mitre').innerHTML = summary.mitre_techniques.map(t => {
+      const cls = MITRE_CLS[t.technique_id] ?? '';
+      return `<tr>
+        <td>${badge(t.technique_id, cls)}</td>
+        <td>${t.name}</td>
+        <td>${t.tactic}</td>
+        <td>${t.count}</td>
+      </tr>`;
+    }).join('');
+
+    // Events
+    document.getElementById('tb-events').innerHTML = eventsResp.events.map((e, i) => {
+      const typeCls  = TYPE_CLS[e.event_type] ?? '';
+      const mitreCls = MITRE_CLS[e.mitre_id]  ?? '';
+      const details  = [
+        e.username      ? `user: ${e.username}`        : '',
+        e.port          ? `port: ${e.port}`             : '',
+        e.file_accessed ? `file: ${e.file_accessed}`   : '',
+      ].filter(Boolean).join(' &nbsp; ');
+      const mitreBadge = e.mitre_id
+        ? badge(`${e.mitre_id} &mdash; ${e.mitre_name}`, mitreCls)
+        : '<span class="dim">&mdash;</span>';
+      return `<tr>
+        <td class="num">${String(i + 1).padStart(3, '0')}</td>
+        <td>${e.timestamp}</td>
+        <td>${badge(e.event_type, typeCls)}</td>
+        <td>${e.source_ip}</td>
+        <td class="dim">${details}</td>
+        <td>${mitreBadge}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  load().catch(err => console.error('Dashboard load failed:', err));
+</script>
+
+</body>
+</html>

@@ -1,0 +1,11 @@
+# ── Phase 1 / models.py ───────────────────────────────────────────────
+# threat_mapper.py and models.py use stdlib only (no extra deps)
+
+# ── Phase 2 — ESP32 Bridge + Correlator ──────────────────────────────
+pyserial
+# core/correlator.py and core/scorer.py use stdlib only
+
+# ── Dashboard (Phase 3) ───────────────────────────────────────────────
+fastapi
+uvicorn[standard]
+jinja2

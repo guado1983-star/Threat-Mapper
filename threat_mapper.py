@@ -1,28 +1,16 @@
 import argparse
 import re
 from collections import Counter
-from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import mitre_mapper
+from core.models import SecurityEvent
 
 REPORTS_DIR = Path("reports")
 
 DEFAULT_LOG_FILE = Path("logs/sample_attack.log")
-
-
-@dataclass
-class SecurityEvent:
-    timestamp: str
-    event_type: str
-    source_ip: str
-    username: Optional[str] = None
-    password_attempt: Optional[str] = None
-    file_accessed: Optional[str] = None
-    port: Optional[int] = None
-    raw_line: str = field(default="", repr=False)
 
 
 _SSH_PATTERN = re.compile(
@@ -38,6 +26,31 @@ _PORT_PATTERN = re.compile(
 _HONEYFILE_PATTERN = re.compile(
     r"(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[.*?\]\s+AUDIT: Honeyfile read - "
     r"file=(?P<file>\S+) user='(?P<user>[^']+)' src=(?P<ip>[\d.]+)"
+)
+
+_MOTION_PATTERN = re.compile(
+    r"(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[.*?\]\s+PHYSICAL: Motion detected - "
+    r"sensor='(?P<sensor>[^']+)' zone='(?P<zone>[^']+)'"
+)
+
+_PHYSICAL_PRESENCE_PATTERN = re.compile(
+    r"(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[.*?\]\s+ACCESS_CTRL: Badge scan - "
+    r"badge_id='(?P<badge>[^']+)' location='(?P<location>[^']+)' result=(?P<result>\w+)"
+)
+
+_AFTER_HOURS_PATTERN = re.compile(
+    r"(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[.*?\]\s+SECURITY: After-hours intrusion - "
+    r"zone='(?P<zone>[^']+)' sensor='(?P<sensor>[^']+)' badge_id='(?P<badge>[^']+)'"
+)
+
+_CORRELATED_ATTACK_PATTERN = re.compile(
+    r"(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[.*?\]\s+NETWORK: Unknown device - "
+    r"mac='(?P<mac>[^']+)' ip=(?P<ip>[\d.]+) zone='(?P<zone>[^']+)' badge_id='(?P<badge>[^']+)'"
+)
+
+_HONEYFILE_PHYSICAL_PATTERN = re.compile(
+    r"(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) \[.*?\]\s+AUDIT: Physical-digital correlation - "
+    r"file=(?P<file>\S+) badge_id='(?P<badge>[^']+)' zone='(?P<zone>[^']+)'"
 )
 
 
@@ -88,7 +101,75 @@ def _parse_honeyfile(line: str) -> Optional[SecurityEvent]:
     )
 
 
-_PARSERS = [_parse_ssh, _parse_port_scan, _parse_honeyfile]
+def _parse_motion(line: str) -> Optional[SecurityEvent]:
+    m = _MOTION_PATTERN.search(line)
+    if not m:
+        return None
+    return SecurityEvent(
+        timestamp=m.group("timestamp"),
+        event_type="MOTION_DETECTED",
+        source_ip=m.group("sensor"),
+        username=m.group("zone"),
+        raw_line=line,
+    )
+
+
+def _parse_physical_presence(line: str) -> Optional[SecurityEvent]:
+    m = _PHYSICAL_PRESENCE_PATTERN.search(line)
+    if not m:
+        return None
+    return SecurityEvent(
+        timestamp=m.group("timestamp"),
+        event_type="PHYSICAL_PRESENCE",
+        source_ip=m.group("badge"),
+        username=m.group("location"),
+        raw_line=line,
+    )
+
+
+def _parse_after_hours(line: str) -> Optional[SecurityEvent]:
+    m = _AFTER_HOURS_PATTERN.search(line)
+    if not m:
+        return None
+    return SecurityEvent(
+        timestamp=m.group("timestamp"),
+        event_type="AFTER_HOURS_INTRUSION",
+        source_ip=m.group("badge"),
+        username=m.group("zone"),
+        raw_line=line,
+    )
+
+
+def _parse_correlated_attack(line: str) -> Optional[SecurityEvent]:
+    m = _CORRELATED_ATTACK_PATTERN.search(line)
+    if not m:
+        return None
+    return SecurityEvent(
+        timestamp=m.group("timestamp"),
+        event_type="CORRELATED_ATTACK",
+        source_ip=m.group("ip"),
+        username=m.group("zone"),
+        raw_line=line,
+    )
+
+
+def _parse_honeyfile_physical(line: str) -> Optional[SecurityEvent]:
+    m = _HONEYFILE_PHYSICAL_PATTERN.search(line)
+    if not m:
+        return None
+    return SecurityEvent(
+        timestamp=m.group("timestamp"),
+        event_type="HONEYFILE_PHYSICAL_CORRELATION",
+        source_ip=m.group("badge"),
+        username=m.group("zone"),
+        file_accessed=m.group("file"),
+        raw_line=line,
+    )
+
+
+_PARSERS = [_parse_ssh, _parse_port_scan, _parse_honeyfile,
+            _parse_motion, _parse_physical_presence, _parse_after_hours,
+            _parse_correlated_attack, _parse_honeyfile_physical]
 
 
 def parse_log(log_path: Path) -> list:
@@ -151,6 +232,11 @@ _THREAT_SCORES = {
     "PORT_SCAN": 1,
     "SSH_LOGIN_FAILED": 3,
     "HONEYFILE_ACCESSED": 10,
+    "MOTION_DETECTED": 2,
+    "PHYSICAL_PRESENCE": 5,
+    "AFTER_HOURS_INTRUSION": 8,
+    "CORRELATED_ATTACK": 15,
+    "HONEYFILE_PHYSICAL_CORRELATION": 20,
 }
 
 
@@ -206,9 +292,8 @@ def _print_threat_scores(events: list) -> None:
     print(f"{'=' * 62}")
     print("  THREAT SCORES  |  Top Attackers")
     print(f"{'=' * 62}")
-    print(f"  Scoring: PORT_SCAN=+{_THREAT_SCORES['PORT_SCAN']}  "
-          f"SSH_LOGIN_FAILED=+{_THREAT_SCORES['SSH_LOGIN_FAILED']}  "
-          f"HONEYFILE_ACCESSED=+{_THREAT_SCORES['HONEYFILE_ACCESSED']}\n")
+    scoring = "  ".join(f"{k}=+{v}" for k, v in _THREAT_SCORES.items())
+    print(f"  Scoring: {scoring}\n")
 
     for ip, score in ranked:
         flag = "  <<< TOP ATTACKER" if score == top_score else ""
@@ -269,9 +354,7 @@ def save_report(events: list, log_path: Path) -> Path:
         "=" * 62,
         "  THREAT SCORES  |  Top Attackers",
         "=" * 62,
-        f"  Scoring: PORT_SCAN=+{_THREAT_SCORES['PORT_SCAN']}  "
-        f"SSH_LOGIN_FAILED=+{_THREAT_SCORES['SSH_LOGIN_FAILED']}  "
-        f"HONEYFILE_ACCESSED=+{_THREAT_SCORES['HONEYFILE_ACCESSED']}",
+        "  Scoring: " + "  ".join(f"{k}=+{v}" for k, v in _THREAT_SCORES.items()),
         "",
     ]
     for ip, score in ranked:
