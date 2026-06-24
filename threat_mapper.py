@@ -2,8 +2,13 @@ import argparse
 import re
 from collections import Counter
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+import mitre_mapper
+
+REPORTS_DIR = Path("reports")
 
 DEFAULT_LOG_FILE = Path("logs/sample_attack.log")
 
@@ -125,6 +130,7 @@ def _print_events(events: list) -> None:
     print(f"{'=' * 62}\n")
 
     for i, event in enumerate(events, 1):
+        technique = mitre_mapper.map_event(event.event_type)
         print(f"  [{i:03d}]  {event.event_type}")
         print(f"         Timestamp : {event.timestamp}")
         print(f"         Source IP : {event.source_ip}")
@@ -136,7 +142,24 @@ def _print_events(events: list) -> None:
             print(f"         Port      : {event.port}")
         if event.file_accessed:
             print(f"         File      : {event.file_accessed}")
+        if technique:
+            print(f"         MITRE     : {technique.technique_id} -- {technique.name}  [{technique.tactic}]")
         print()
+
+
+_THREAT_SCORES = {
+    "PORT_SCAN": 1,
+    "SSH_LOGIN_FAILED": 3,
+    "HONEYFILE_ACCESSED": 10,
+}
+
+
+def score_threats(events: list) -> dict:
+    scores: dict[str, int] = {}
+    for event in events:
+        weight = _THREAT_SCORES.get(event.event_type, 1)
+        scores[event.source_ip] = scores.get(event.source_ip, 0) + weight
+    return scores
 
 
 def _print_summary(events: list) -> None:
@@ -160,6 +183,121 @@ def _print_summary(events: list) -> None:
     print(f"\n{'=' * 62}\n")
 
 
+def _print_mitre_mapping(events: list) -> None:
+    seen_types = dict.fromkeys(e.event_type for e in events)
+    print(f"{'=' * 62}")
+    print("  MITRE ATT&CK MAPPING")
+    print(f"{'=' * 62}")
+    for event_type in seen_types:
+        technique = mitre_mapper.map_event(event_type)
+        if technique:
+            print(
+                f"  {event_type:<25}  {technique.technique_id}  "
+                f"{technique.name:<30}  [{technique.tactic}]"
+            )
+    print(f"\n{'=' * 62}\n")
+
+
+def _print_threat_scores(events: list) -> None:
+    scores = score_threats(events)
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    top_score = ranked[0][1] if ranked else 0
+
+    print(f"{'=' * 62}")
+    print("  THREAT SCORES  |  Top Attackers")
+    print(f"{'=' * 62}")
+    print(f"  Scoring: PORT_SCAN=+{_THREAT_SCORES['PORT_SCAN']}  "
+          f"SSH_LOGIN_FAILED=+{_THREAT_SCORES['SSH_LOGIN_FAILED']}  "
+          f"HONEYFILE_ACCESSED=+{_THREAT_SCORES['HONEYFILE_ACCESSED']}\n")
+
+    for ip, score in ranked:
+        flag = "  <<< TOP ATTACKER" if score == top_score else ""
+        bar = "#" * min(score, 40)
+        print(f"  {ip:<20}  score: {score:>4}  {bar}{flag}")
+
+    print(f"\n{'=' * 62}\n")
+
+
+def save_report(events: list, log_path: Path) -> Path:
+    scores = score_threats(events)
+    ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+    top_score = ranked[0][1] if ranked else 0
+    type_counts = Counter(e.event_type for e in events)
+    ip_counts = Counter(e.source_ip for e in events)
+    generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    timestamp_slug = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    REPORTS_DIR.mkdir(exist_ok=True)
+    report_path = REPORTS_DIR / f"report_{timestamp_slug}.txt"
+
+    lines = [
+        "=" * 62,
+        "  THREATMAPPER REPORT",
+        f"  Generated : {generated_at}",
+        f"  Log file  : {log_path}",
+        "=" * 62,
+        "",
+        f"  Total events parsed : {len(events)}",
+        "",
+        "  Event types:",
+    ]
+    for event_type, count in type_counts.most_common():
+        bar = "#" * count
+        lines.append(f"    {event_type:<25}  {count:>3}  {bar}")
+
+    lines += ["", "  Source IPs:"]
+    for ip, count in ip_counts.most_common():
+        lines.append(f"    {ip:<20}  {count} event(s)")
+
+    seen_types = dict.fromkeys(e.event_type for e in events)
+    lines += [
+        "",
+        "=" * 62,
+        "  MITRE ATT&CK MAPPING",
+        "=" * 62,
+    ]
+    for event_type in seen_types:
+        technique = mitre_mapper.map_event(event_type)
+        if technique:
+            lines.append(
+                f"  {event_type:<25}  {technique.technique_id}  "
+                f"{technique.name:<30}  [{technique.tactic}]"
+            )
+
+    lines += [
+        "",
+        "=" * 62,
+        "  THREAT SCORES  |  Top Attackers",
+        "=" * 62,
+        f"  Scoring: PORT_SCAN=+{_THREAT_SCORES['PORT_SCAN']}  "
+        f"SSH_LOGIN_FAILED=+{_THREAT_SCORES['SSH_LOGIN_FAILED']}  "
+        f"HONEYFILE_ACCESSED=+{_THREAT_SCORES['HONEYFILE_ACCESSED']}",
+        "",
+    ]
+    for ip, score in ranked:
+        flag = "  <<< TOP ATTACKER" if score == top_score else ""
+        bar = "#" * min(score, 40)
+        lines.append(f"  {ip:<20}  score: {score:>4}  {bar}{flag}")
+
+    lines += ["", "=" * 62, "", "  RAW EVENTS", "=" * 62, ""]
+    for i, event in enumerate(events, 1):
+        lines.append(f"  [{i:03d}]  {event.event_type}")
+        lines.append(f"         Timestamp : {event.timestamp}")
+        lines.append(f"         Source IP : {event.source_ip}")
+        if event.username:
+            lines.append(f"         Username  : {event.username}")
+        if event.password_attempt:
+            lines.append(f"         Password  : {event.password_attempt}")
+        if event.port is not None:
+            lines.append(f"         Port      : {event.port}")
+        if event.file_accessed:
+            lines.append(f"         File      : {event.file_accessed}")
+        lines.append("")
+
+    report_path.write_text("\n".join(lines), encoding="utf-8")
+    return report_path
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="ThreatMapper - Security log parser")
     parser.add_argument(
@@ -179,3 +317,8 @@ if __name__ == "__main__":
 
     _print_events(events)
     _print_summary(events)
+    _print_mitre_mapping(events)
+    _print_threat_scores(events)
+
+    report_path = save_report(events, args.log_file)
+    print(f"[+] Report saved to {report_path}")
