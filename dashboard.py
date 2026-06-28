@@ -7,7 +7,10 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
 import mitre_mapper
+from core.correlator import correlate_from_log
 from core.models import SecurityEvent
+from core.responder import respond_to_scores
+from core.scorer import score_all
 from threat_mapper import parse_log, score_threats
 
 DEFAULT_LOG_FILE = Path(__file__).parent / "logs" / "sample_attack.log"
@@ -88,5 +91,30 @@ async def api_summary(log: str = str(DEFAULT_LOG_FILE)):
     }
 
 
+@app.post("/api/respond")
+async def api_respond(
+    log: str = str(DEFAULT_LOG_FILE),
+    ntfy_topic: str = "",
+    block_ips: bool = False,
+):
+    events  = _load(log)
+    threats = correlate_from_log(events)
+    scores  = score_all(digital=events, threats=threats)
+    actions = respond_to_scores(
+        scores,
+        correlated=threats,
+        ntfy_topic=ntfy_topic,
+        block_ips=block_ips,
+    )
+    return {
+        "sources_actioned": len(actions),
+        "total_actions": sum(len(r["actions_taken"]) for r in actions),
+        "responses": actions,
+    }
+
+
 if __name__ == "__main__":
+    import threading
+    import webbrowser
+    threading.Timer(1.5, lambda: webbrowser.open("http://127.0.0.1:3000")).start()
     uvicorn.run("dashboard:app", host="127.0.0.1", port=3000, reload=True)

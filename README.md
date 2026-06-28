@@ -33,6 +33,13 @@ A physical-digital threat detection and correlation system that parses security 
 - Scorer aggregates events across digital, physical, and correlated sources into ranked `ThreatScore` objects
 - Threat levels: LOW / MEDIUM / HIGH / CRITICAL
 
+### Phase 5 — SOAR (Security Orchestration, Automation, and Response) *(In Progress)*
+- Automated response engine triggers actions based on threat score thresholds
+- CRITICAL threats → phone alert + auto-generated incident report
+- HIGH threats → alert notification + recommended action logged
+- Pluggable action system: block IP, send alert, create report
+- Runs independently of hardware — responds to any event source (digital, physical, or correlated)
+
 ---
 
 ## MITRE ATT&CK Coverage
@@ -114,6 +121,31 @@ python -m core.scorer --log logs/my_log.log
 
 ---
 
+### Run the SOAR responder
+
+```bash
+# Evaluate the sample log and write incident reports for all threats above LOW
+python -m core.responder
+
+# With phone alerts via ntfy.sh (install ntfy app, subscribe to your topic)
+python -m core.responder --ntfy-topic my-threat-alerts
+
+# Also block CRITICAL source IPs via Windows Firewall (requires admin)
+python -m core.responder --ntfy-topic my-threat-alerts --block-ips
+
+# Set minimum alert level (default: HIGH — also alerts on CRITICAL)
+python -m core.responder --ntfy-topic my-threat-alerts --min-alert-level CRITICAL
+
+# Set topic via environment variable instead of flag
+set NTFY_TOPIC=my-threat-alerts
+python -m core.responder
+```
+
+SOAR also runs automatically at the end of every `python threat_mapper.py` run,
+and is available via the dashboard API at `POST /api/respond`.
+
+---
+
 ### Run the web dashboard
 
 ```bash
@@ -127,6 +159,7 @@ Then open **http://127.0.0.1:3000** in your browser.
 | `/` | Live dashboard UI |
 | `/api/events` | All parsed events as JSON |
 | `/api/summary` | Threat scores, event counts, MITRE breakdown |
+| `POST /api/respond` | Trigger SOAR response (returns actions taken) |
 | `/api/docs` | Auto-generated Swagger UI |
 
 ---
@@ -141,7 +174,8 @@ Threat-Mapper/
 ├── core/
 │   ├── models.py          # Shared dataclasses (SecurityEvent, PhysicalEvent, CorrelatedThreat, ThreatScore)
 │   ├── correlator.py      # Physical + digital correlation engine
-│   └── scorer.py          # Aggregated threat scoring
+│   ├── scorer.py          # Aggregated threat scoring
+│   └── responder.py       # SOAR response engine (Phase 5)
 ├── esp32/
 │   └── bridge.py          # ESP32-CAM serial bridge
 ├── templates/

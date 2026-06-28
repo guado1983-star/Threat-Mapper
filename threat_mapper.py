@@ -382,6 +382,11 @@ def save_report(events: list, log_path: Path) -> Path:
 
 
 if __name__ == "__main__":
+    import os
+    from core.correlator import correlate_from_log
+    from core.responder import respond_to_scores
+    from core.scorer import score_all
+
     parser = argparse.ArgumentParser(description="ThreatMapper - Security log parser")
     parser.add_argument(
         "log_file",
@@ -389,6 +394,16 @@ if __name__ == "__main__":
         default=DEFAULT_LOG_FILE,
         type=Path,
         help=f"Path to log file (default: {DEFAULT_LOG_FILE})",
+    )
+    parser.add_argument(
+        "--ntfy-topic",
+        default=os.environ.get("NTFY_TOPIC", ""),
+        help="ntfy.sh topic for phone alerts (or set NTFY_TOPIC env var)",
+    )
+    parser.add_argument(
+        "--block-ips",
+        action="store_true",
+        help="Block CRITICAL source IPs via the platform firewall (requires admin/root)",
     )
     args = parser.parse_args()
 
@@ -405,3 +420,17 @@ if __name__ == "__main__":
 
     report_path = save_report(events, args.log_file)
     print(f"[+] Report saved to {report_path}")
+
+    # Phase 5 — SOAR: auto-respond to scored threats
+    threats = correlate_from_log(events)
+    scores  = score_all(digital=events, threats=threats)
+    print(f"\n{'=' * 62}")
+    print("  SOAR — Automated Response")
+    print(f"{'=' * 62}\n")
+    respond_to_scores(
+        scores,
+        correlated=threats,
+        ntfy_topic=args.ntfy_topic,
+        block_ips=args.block_ips,
+    )
+    print()
