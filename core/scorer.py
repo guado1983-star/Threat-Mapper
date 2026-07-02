@@ -92,12 +92,12 @@ def score_events(events: list) -> list:
 def score_physical(events: list) -> list:
     """
     Score PhysicalEvent objects (from esp32.bridge) by badge_id when
-    present, otherwise by location.
+    present, then sensor_id, then location.
     Returns list[ThreatScore] sorted by score descending.
     """
     registry: dict[str, ThreatScore] = {}
     for e in events:
-        source_id = e.badge_id or e.location
+        source_id = e.badge_id or e.sensor_id or e.location
         weight = _WEIGHTS_ESP32.get(e.event_type, 1)
         if e.after_hours:
             weight = max(weight, _WEIGHTS_PHYSICAL_LOG["AFTER_HOURS_INTRUSION"])
@@ -109,14 +109,17 @@ def score_physical(events: list) -> list:
 def score_correlated(threats: list) -> list:
     """
     Attribute each CorrelatedThreat's score to the physical-side source
-    (badge_id for PhysicalEvent, source_ip for physical-typed SecurityEvent).
+    (badge_id or sensor_id for PhysicalEvent, source_ip for SecurityEvent).
     Returns list[ThreatScore] sorted by score descending.
     """
     registry: dict[str, ThreatScore] = {}
     for threat in threats:
         for pe in threat.physical_events:
-            # PhysicalEvent has badge_id; SecurityEvent has source_ip
-            source_id = getattr(pe, "badge_id", None) or getattr(pe, "source_ip", "unknown")
+            source_id = (
+                getattr(pe, "badge_id",  None)
+                or getattr(pe, "sensor_id", None)
+                or getattr(pe, "source_ip", "unknown")
+            )
             ts = _get(registry, source_id, is_physical=True)
             ts.score       += threat.score
             ts.event_count += 1

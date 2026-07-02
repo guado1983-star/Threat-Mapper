@@ -23,6 +23,7 @@ Run standalone:
 """
 
 import argparse
+import ipaddress
 import json
 import os
 import platform
@@ -86,6 +87,11 @@ def _notify_phone(
 def _block_ip(ip: str) -> bool:
     """Block an inbound IP using the platform firewall. Returns True on success."""
     if not ip or ip in ("unknown", "0.0.0.0", ""):
+        return False
+    try:
+        ipaddress.ip_address(ip)
+    except ValueError:
+        print(f"  [SOAR] Skipping block — not a valid IP address: {ip!r}")
         return False
     try:
         if platform.system() == "Windows":

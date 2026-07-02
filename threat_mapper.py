@@ -9,6 +9,7 @@ import mitre_mapper
 from core.models import SecurityEvent
 
 REPORTS_DIR = Path("reports")
+LOGINS_DIR = Path("logins")
 
 DEFAULT_LOG_FILE = Path("logs/sample_attack.log")
 
@@ -109,7 +110,8 @@ def _parse_motion(line: str) -> Optional[SecurityEvent]:
         timestamp=m.group("timestamp"),
         event_type="MOTION_DETECTED",
         source_ip=m.group("sensor"),
-        username=m.group("zone"),
+        sensor_id=m.group("sensor"),
+        zone=m.group("zone"),
         raw_line=line,
     )
 
@@ -122,7 +124,7 @@ def _parse_physical_presence(line: str) -> Optional[SecurityEvent]:
         timestamp=m.group("timestamp"),
         event_type="PHYSICAL_PRESENCE",
         source_ip=m.group("badge"),
-        username=m.group("location"),
+        zone=m.group("location"),
         raw_line=line,
     )
 
@@ -135,7 +137,8 @@ def _parse_after_hours(line: str) -> Optional[SecurityEvent]:
         timestamp=m.group("timestamp"),
         event_type="AFTER_HOURS_INTRUSION",
         source_ip=m.group("badge"),
-        username=m.group("zone"),
+        sensor_id=m.group("sensor"),
+        zone=m.group("zone"),
         raw_line=line,
     )
 
@@ -148,7 +151,7 @@ def _parse_correlated_attack(line: str) -> Optional[SecurityEvent]:
         timestamp=m.group("timestamp"),
         event_type="CORRELATED_ATTACK",
         source_ip=m.group("ip"),
-        username=m.group("zone"),
+        zone=m.group("zone"),
         raw_line=line,
     )
 
@@ -161,7 +164,7 @@ def _parse_honeyfile_physical(line: str) -> Optional[SecurityEvent]:
         timestamp=m.group("timestamp"),
         event_type="HONEYFILE_PHYSICAL_CORRELATION",
         source_ip=m.group("badge"),
-        username=m.group("zone"),
+        zone=m.group("zone"),
         file_accessed=m.group("file"),
         raw_line=line,
     )
@@ -214,7 +217,11 @@ def _print_events(events: list) -> None:
         technique = mitre_mapper.map_event(event.event_type)
         print(f"  [{i:03d}]  {event.event_type}")
         print(f"         Timestamp : {event.timestamp}")
-        print(f"         Source IP : {event.source_ip}")
+        print(f"         Source    : {event.source_ip}")
+        if event.sensor_id:
+            print(f"         Sensor    : {event.sensor_id}")
+        if event.zone:
+            print(f"         Zone      : {event.zone}")
         if event.username:
             print(f"         Username  : {event.username}")
         if event.password_attempt:
@@ -262,9 +269,9 @@ def _print_summary(events: list) -> None:
 
     print()
     ip_counts = Counter(e.source_ip for e in events)
-    print("  Source IPs:")
-    for ip, count in ip_counts.most_common():
-        print(f"    {ip:<20}  {count} event(s)")
+    print("  Sources:")
+    for src, count in ip_counts.most_common():
+        print(f"    {src:<20}  {count} event(s)")
 
     print(f"\n{'=' * 62}\n")
 
@@ -295,10 +302,10 @@ def _print_threat_scores(events: list) -> None:
     scoring = "  ".join(f"{k}=+{v}" for k, v in _THREAT_SCORES.items())
     print(f"  Scoring: {scoring}\n")
 
-    for ip, score in ranked:
+    for src, score in ranked:
         flag = "  <<< TOP ATTACKER" if score == top_score else ""
         bar = "#" * min(score, 40)
-        print(f"  {ip:<20}  score: {score:>4}  {bar}{flag}")
+        print(f"  {src:<20}  score: {score:>4}  {bar}{flag}")
 
     print(f"\n{'=' * 62}\n")
 
@@ -330,9 +337,9 @@ def save_report(events: list, log_path: Path) -> Path:
         bar = "#" * count
         lines.append(f"    {event_type:<25}  {count:>3}  {bar}")
 
-    lines += ["", "  Source IPs:"]
-    for ip, count in ip_counts.most_common():
-        lines.append(f"    {ip:<20}  {count} event(s)")
+    lines += ["", "  Sources:"]
+    for src, count in ip_counts.most_common():
+        lines.append(f"    {src:<20}  {count} event(s)")
 
     seen_types = dict.fromkeys(e.event_type for e in events)
     lines += [
@@ -357,16 +364,20 @@ def save_report(events: list, log_path: Path) -> Path:
         "  Scoring: " + "  ".join(f"{k}=+{v}" for k, v in _THREAT_SCORES.items()),
         "",
     ]
-    for ip, score in ranked:
+    for src, score in ranked:
         flag = "  <<< TOP ATTACKER" if score == top_score else ""
         bar = "#" * min(score, 40)
-        lines.append(f"  {ip:<20}  score: {score:>4}  {bar}{flag}")
+        lines.append(f"  {src:<20}  score: {score:>4}  {bar}{flag}")
 
     lines += ["", "=" * 62, "", "  RAW EVENTS", "=" * 62, ""]
     for i, event in enumerate(events, 1):
         lines.append(f"  [{i:03d}]  {event.event_type}")
         lines.append(f"         Timestamp : {event.timestamp}")
-        lines.append(f"         Source IP : {event.source_ip}")
+        lines.append(f"         Source    : {event.source_ip}")
+        if event.sensor_id:
+            lines.append(f"         Sensor    : {event.sensor_id}")
+        if event.zone:
+            lines.append(f"         Zone      : {event.zone}")
         if event.username:
             lines.append(f"         Username  : {event.username}")
         if event.password_attempt:
@@ -421,7 +432,7 @@ if __name__ == "__main__":
     report_path = save_report(events, args.log_file)
     print(f"[+] Report saved to {report_path}")
 
-    # Phase 5 — SOAR: auto-respond to scored threats
+    # Phase 5 — SOAR: auto-respond to scored threats    
     threats = correlate_from_log(events)
     scores  = score_all(digital=events, threats=threats)
     print(f"\n{'=' * 62}")

@@ -43,6 +43,8 @@ class SecurityEvent:
     password_attempt: Optional[str] = None
     file_accessed:    Optional[str] = None
     port:             Optional[int] = None
+    sensor_id:        Optional[str] = None
+    zone:             Optional[str] = None
     raw_line:         str = field(default="", repr=False)
 
 
@@ -60,7 +62,9 @@ class PhysicalEvent:
     confidence:       float        # 0.0 – 1.0
     duration_seconds: int   = 0
     after_hours:      bool  = False
+    sensor_id:        Optional[str] = None
     badge_id:         Optional[str] = None
+    zone:             Optional[str] = None
     raw_data:         dict  = field(default_factory=dict)
 
 

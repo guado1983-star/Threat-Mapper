@@ -240,7 +240,8 @@ def correlate(
                 continue
             seen.add(tid)
 
-            threats.append(_build_threat(rule, p.timestamp, p.location, [p], matched))
+            location = p.zone or p.location
+            threats.append(_build_threat(rule, p.timestamp, location, [p], matched))
 
     return sorted(threats, key=lambda t: t.score, reverse=True)
 
@@ -283,7 +284,7 @@ def correlate_from_log(
                 continue
             seen.add(tid)
 
-            location = p.username or p.source_ip  # best available location for SecurityEvent
+            location = getattr(p, "zone", None) or p.username or p.source_ip
             threats.append(_build_threat(rule, p.timestamp, location, [p], matched))
 
     return sorted(threats, key=lambda t: t.score, reverse=True)

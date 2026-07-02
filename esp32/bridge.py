@@ -89,7 +89,9 @@ def parse_message(raw: str) -> Optional[PhysicalEvent]:
         confidence=float(data.get("confidence", 1.0)),
         duration_seconds=int(data.get("duration", 0)),
         after_hours=_is_after_hours(),
+        sensor_id=data.get("sensor"),
         badge_id=data.get("badge_id"),
+        zone=data.get("zone"),
         raw_data=data,
     )
 
@@ -102,14 +104,15 @@ def _to_log_line(event: PhysicalEvent) -> str:
     regex parsers (_MOTION_PATTERN, _PHYSICAL_PRESENCE_PATTERN,
     _AFTER_HOURS_PATTERN) will match.
     """
-    ts    = event.timestamp
-    badge = event.badge_id or "unknown"
+    ts     = event.timestamp
+    badge  = event.badge_id  or "unknown"
+    sensor = event.sensor_id or "cam_1"
+    zone   = event.zone      or event.location
 
     if event.event_type == "MOTION":
-        sensor = event.raw_data.get("sensor", "cam_1")
         return (
             f"{ts} [INFO] PHYSICAL: Motion detected - "
-            f"sensor='{sensor}' zone='{event.location}'"
+            f"sensor='{sensor}' zone='{zone}'"
         )
 
     if event.event_type == "PRESENCE_DETECTED":
@@ -121,10 +124,9 @@ def _to_log_line(event: PhysicalEvent) -> str:
 
     # ENTRY / EXIT
     if event.after_hours:
-        sensor = event.raw_data.get("sensor", "cam_1")
         return (
             f"{ts} [INFO] SECURITY: After-hours intrusion - "
-            f"zone='{event.location}' sensor='{sensor}' badge_id='{badge}'"
+            f"zone='{zone}' sensor='{sensor}' badge_id='{badge}'"
         )
     result = "GRANTED" if event.event_type == "ENTRY" else "EXIT"
     return (
