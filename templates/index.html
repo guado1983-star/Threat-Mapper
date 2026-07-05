@@ -254,6 +254,9 @@
 </main>
 
 <script>
+  const API_KEY = "{{ api_key }}";
+  const API_HEADERS = API_KEY ? {"X-API-Key": API_KEY} : {};
+
   const PHYSICAL_TYPES = new Set([
     'MOTION_DETECTED', 'PHYSICAL_PRESENCE', 'AFTER_HOURS_INTRUSION',
     'CORRELATED_ATTACK', 'HONEYFILE_PHYSICAL_CORRELATION',
@@ -287,8 +290,8 @@
 
   async function load() {
     const [summary, eventsResp] = await Promise.all([
-      fetch('/api/summary').then(r => r.json()),
-      fetch('/api/events').then(r => r.json()),
+      fetch('/api/summary', {headers: API_HEADERS}).then(r => r.json()),
+      fetch('/api/events',  {headers: API_HEADERS}).then(r => r.json()),
     ]);
 
     const types = summary.event_types;
@@ -309,7 +312,7 @@
       const pct = Math.round((row.score / topScore) * 100);
       const cls = i === 0 ? 'top' : '';
       return `<tr>
-        <td class="${cls}">${row.ip}${i === 0 ? ' &laquo;' : ''}</td>
+        <td class="${cls}">${row.source}${i === 0 ? ' &laquo;' : ''}</td>
         <td>${row.score}</td>
         <td>${row.events}</td>
         <td><div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div></td>

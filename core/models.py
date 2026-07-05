@@ -10,8 +10,6 @@ from typing import Optional
 from enum import Enum
 
 
-# ── Threat Level ───────────────────────────────────────────────────── #
-
 class ThreatLevel(Enum):
     LOW      = 1
     MEDIUM   = 2

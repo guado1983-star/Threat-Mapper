@@ -30,7 +30,7 @@ _DEBUG = os.environ.get("DEBUG", "").lower() in ("1", "true", "yes")
 
 app = FastAPI(
     title="ThreatMapper",
-    docs_url="/api/docs" if _DEBUG else None,   # hidden in production
+    docs_url="/api/docs",
     redoc_url=None,
 )
 _templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
@@ -102,7 +102,11 @@ def _serialize(events: list) -> list[dict]:
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    return _templates.TemplateResponse(request=request, name="index.html")
+    return _templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={},
+    )
 
 
 @app.get("/api/events", dependencies=[Depends(_require_api_key)])
