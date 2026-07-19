@@ -1,5 +1,6 @@
 import argparse
 import re
+import sys
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
@@ -109,7 +110,6 @@ def _parse_motion(line: str) -> Optional[SecurityEvent]:
     return SecurityEvent(
         timestamp=m.group("timestamp"),
         event_type="MOTION_DETECTED",
-        source_ip=m.group("sensor"),
         sensor_id=m.group("sensor"),
         zone=m.group("zone"),
         raw_line=line,
@@ -123,7 +123,7 @@ def _parse_physical_presence(line: str) -> Optional[SecurityEvent]:
     return SecurityEvent(
         timestamp=m.group("timestamp"),
         event_type="PHYSICAL_PRESENCE",
-        source_ip=m.group("badge"),
+        badge_id=m.group("badge"),
         zone=m.group("location"),
         raw_line=line,
     )
@@ -136,7 +136,7 @@ def _parse_after_hours(line: str) -> Optional[SecurityEvent]:
     return SecurityEvent(
         timestamp=m.group("timestamp"),
         event_type="AFTER_HOURS_INTRUSION",
-        source_ip=m.group("badge"),
+        badge_id=m.group("badge"),
         sensor_id=m.group("sensor"),
         zone=m.group("zone"),
         raw_line=line,
@@ -163,7 +163,7 @@ def _parse_honeyfile_physical(line: str) -> Optional[SecurityEvent]:
     return SecurityEvent(
         timestamp=m.group("timestamp"),
         event_type="HONEYFILE_PHYSICAL_CORRELATION",
-        source_ip=m.group("badge"),
+        badge_id=m.group("badge"),
         zone=m.group("zone"),
         file_accessed=m.group("file"),
         raw_line=line,
@@ -217,7 +217,7 @@ def _print_events(events: list) -> None:
         technique = mitre_mapper.map_event(event.event_type)
         print(f"  [{i:03d}]  {event.event_type}")
         print(f"         Timestamp : {event.timestamp}")
-        print(f"         Source    : {event.source_ip}")
+        print(f"         Source    : {_identity_of(event)}")
         if event.sensor_id:
             print(f"         Sensor    : {event.sensor_id}")
         if event.zone:
@@ -247,11 +247,24 @@ _THREAT_SCORES = {
 }
 
 
+def _identity_of(event) -> str:
+    """The actor identity for scoring: IP for digital events, badge for
+    physical, sensor as a last resort. Never collapse these into one field."""
+    if event.source_ip:
+        return event.source_ip
+    if getattr(event, "badge_id", None):
+        return f"badge:{event.badge_id}"
+    if event.sensor_id:
+        return f"sensor:{event.sensor_id}"
+    return "unknown"
+
+
 def score_threats(events: list) -> dict:
     scores: dict[str, int] = {}
     for event in events:
         weight = _THREAT_SCORES.get(event.event_type, 1)
-        scores[event.source_ip] = scores.get(event.source_ip, 0) + weight
+        identity = _identity_of(event)
+        scores[identity] = scores.get(identity, 0) + weight
     return scores
 
 
@@ -268,7 +281,7 @@ def _print_summary(events: list) -> None:
         print(f"    {event_type:<25}  {count:>3}  {bar}")
 
     print()
-    ip_counts = Counter(e.source_ip for e in events)
+    ip_counts = Counter(_identity_of(e) for e in events)
     print("  Sources:")
     for src, count in ip_counts.most_common():
         print(f"    {src:<20}  {count} event(s)")
@@ -315,7 +328,7 @@ def save_report(events: list, log_path: Path) -> Path:
     ranked = sorted(scores.items(), key=lambda x: x[1], reverse=True)
     top_score = ranked[0][1] if ranked else 0
     type_counts = Counter(e.event_type for e in events)
-    ip_counts = Counter(e.source_ip for e in events)
+    ip_counts = Counter(_identity_of(e) for e in events)
     generated_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     timestamp_slug = datetime.now().strftime("%Y%m%d_%H%M%S")
 
@@ -373,7 +386,7 @@ def save_report(events: list, log_path: Path) -> Path:
     for i, event in enumerate(events, 1):
         lines.append(f"  [{i:03d}]  {event.event_type}")
         lines.append(f"         Timestamp : {event.timestamp}")
-        lines.append(f"         Source    : {event.source_ip}")
+        lines.append(f"         Source    : {_identity_of(event)}")
         if event.sensor_id:
             lines.append(f"         Sensor    : {event.sensor_id}")
         if event.zone:
@@ -394,6 +407,7 @@ def save_report(events: list, log_path: Path) -> Path:
 
 if __name__ == "__main__":
     import os
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     from core.correlator import correlate_from_log
     from core.responder import respond_to_scores
     from core.scorer import score_all

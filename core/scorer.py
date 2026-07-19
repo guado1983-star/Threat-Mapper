@@ -57,6 +57,16 @@ _ALL_PHYSICAL_LOG_TYPES = set(_WEIGHTS_PHYSICAL_LOG)
 
 # ── Internal helpers ───────────────────────────────────────────────── #
 
+def _identity_of(event) -> str:
+    if event.source_ip:
+        return event.source_ip
+    if getattr(event, "badge_id", None):
+        return f"badge:{event.badge_id}"
+    if event.sensor_id:
+        return f"sensor:{event.sensor_id}"
+    return "unknown"
+
+
 def _get(registry: dict, source_id: str, is_physical: bool) -> ThreatScore:
     if source_id not in registry:
         registry[source_id] = ThreatScore(source_id=source_id, is_physical=is_physical)
@@ -84,7 +94,7 @@ def score_events(events: list) -> list:
             or _WEIGHTS_DIGITAL.get(e.event_type)
             or 1
         )
-        ts = _get(registry, e.source_ip, is_physical)
+        ts = _get(registry, _identity_of(e), is_physical)
         ts.add(e.event_type, weight)
     return _sorted(registry)
 
@@ -115,11 +125,7 @@ def score_correlated(threats: list) -> list:
     registry: dict[str, ThreatScore] = {}
     for threat in threats:
         for pe in threat.physical_events:
-            source_id = (
-                getattr(pe, "badge_id",  None)
-                or getattr(pe, "sensor_id", None)
-                or getattr(pe, "source_ip", "unknown")
-            )
+            source_id = _identity_of(pe)
             ts = _get(registry, source_id, is_physical=True)
             ts.score       += threat.score
             ts.event_count += 1

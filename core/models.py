@@ -36,12 +36,13 @@ class SecurityEvent:
     """
     timestamp:        str
     event_type:       str
-    source_ip:        str
+    source_ip:        Optional[str] = None
     username:         Optional[str] = None
     password_attempt: Optional[str] = None
     file_accessed:    Optional[str] = None
     port:             Optional[int] = None
     sensor_id:        Optional[str] = None
+    badge_id:         Optional[str] = None
     zone:             Optional[str] = None
     raw_line:         str = field(default="", repr=False)
 
